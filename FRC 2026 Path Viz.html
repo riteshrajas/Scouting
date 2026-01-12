@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRC 2026 Path Viz - Physics Mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #0f172a; /* slate-900 */
+            color: white;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow-x: hidden;
+        }
+        canvas {
+            touch-action: none; /* Critical for drawing on touch devices */
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+        input[type="number"] {
+            background-color: #1e293b;
+            border-color: #334155;
+            color: white;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Header -->
+    <div class="w-full max-w-6xl flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2">
+                <i data-lucide="mouse-pointer-2" class="w-6 h-6"></i>
+                FRC 2026 Path Viz
+            </h1>
+            <p class="text-slate-400 text-sm">Upload map, set physics limits, simulate run.</p>
+        </div>
+        
+        <div class="flex gap-2">
+            <label class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition select-none border border-slate-700">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Upload Map</span>
+                <input type="file" id="imageInput" accept="image/*" class="hidden" />
+            </label>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Controls Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- Panel: Physics Settings (New) -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl space-y-3">
+                <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="settings-2" class="w-4 h-4"></i> Physics Limits
+                </h2>
+                
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-400">Field Width (ft)</label>
+                    <input type="number" id="inputFieldWidth" value="54" class="w-full px-3 py-2 rounded border focus:border-blue-500 focus:outline-none text-sm" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-400">Max Speed (ft/s)</label>
+                        <input type="number" id="inputMaxSpeed" value="14" class="w-full px-3 py-2 rounded border focus:border-blue-500 focus:outline-none text-sm" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-400">Max Accel (ft/s²)</label>
+                        <input type="number" id="inputMaxAccel" value="8" class="w-full px-3 py-2 rounded border focus:border-blue-500 focus:outline-none text-sm" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel: Drawing Tools -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl">
+                <h2 class="text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider">Alliance Color</h2>
+                <div class="flex gap-2 mb-4">
+                    <button id="btnRed" class="flex-1 py-2 rounded-lg flex justify-center items-center border-2 transition bg-red-500/20 border-red-500 text-red-400 text-sm font-medium">Red</button>
+                    <button id="btnBlue" class="flex-1 py-2 rounded-lg flex justify-center items-center border-2 transition border-slate-600 hover:bg-slate-700 text-sm font-medium">Blue</button>
+                </div>
+                
+                <h2 class="text-sm font-bold text-slate-300 mb-2 uppercase tracking-wider">Brush Width</h2>
+                <input type="range" id="brushSize" min="2" max="20" value="5" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer mb-2" />
+            </div>
+
+            <!-- Panel: Actions -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl space-y-3">
+                <button id="btnPlay" disabled class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold flex items-center justify-center gap-2 transition">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    Simulate Run
+                </button>
+
+                <button id="btnExport" disabled class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold flex items-center justify-center gap-2 transition">
+                    <span id="exportText" class="flex items-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        Save Video
+                    </span>
+                </button>
+
+                <button id="btnClear" class="w-full py-3 bg-slate-700 hover:bg-red-900/50 hover:text-red-200 text-slate-300 rounded-lg font-medium flex items-center justify-center gap-2 transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    Clear Paths
+                </button>
+            </div>
+
+            <!-- Panel: Timing Stats -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl">
+                <h2 class="text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider flex justify-between items-start">
+                    <span>Run Stats</span>
+                    <div class="flex flex-col items-end">
+                        <span id="totalDuration" class="text-emerald-400 font-mono text-base">0.00s</span>
+                        <span id="totalDistance" class="text-blue-300 font-mono text-xs">0.0 ft</span>
+                    </div>
+                </h2>
+                <div id="pathList" class="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar mt-2">
+                    <div class="text-slate-500 text-xs italic py-2 text-center">No paths recorded yet.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="lg:col-span-3">
+            <div id="canvasContainer" class="w-full rounded-xl overflow-hidden border-2 border-slate-700 bg-slate-950 shadow-2xl relative" style="min-height: 400px;">
+                <!-- Overlay for hints -->
+                <div id="hintOverlay" class="absolute top-4 left-4 bg-black/70 px-3 py-1 rounded text-xs text-white pointer-events-none select-none hidden">
+                    Draw path here
+                </div>
+                <!-- Error Toast -->
+                <div id="errorToast" class="absolute top-4 right-4 bg-red-600/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg hidden pointer-events-none transition-opacity">
+                    Error message
+                </div>
+                <canvas id="mainCanvas" class="w-full h-full block cursor-default"></canvas>
+            </div>
+            
+            <div class="mt-4 flex justify-between text-xs text-slate-500">
+                <span id="statusPathCount">0 paths</span>
+                <span id="statusScale">Scale: 1px = ? ft</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm px-4">
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-600 shadow-2xl max-w-sm w-full">
+            <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                Clear All Paths?
+            </h3>
+            <p class="text-slate-300 mb-6">This action cannot be undone.</p>
+            <div class="flex gap-3 justify-end">
+                <button id="btnCancelClear" class="px-4 py-2 rounded-lg hover:bg-slate-700 text-slate-300 transition font-medium">Cancel</button>
+                <button id="btnConfirmClear" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition">Yes, Clear All</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let bgImageObj = null;
+        let isRecording = false;
+        let isPlaying = false;
+        let isRendering = false;
+        let paths = []; 
+        let currentPathRaw = []; // Just x,y
+        let selectedColor = '#EF4444'; 
+        let brushSize = 5;
+        
+        // Physics Config
+        let physics = {
+            fieldWidth: 54, // feet
+            maxSpeed: 14,   // ft/s
+            maxAccel: 8     // ft/s^2
+        };
+        
+        // --- DOM Elements ---
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvasContainer');
+        const imageInput = document.getElementById('imageInput');
+        
+        // Buttons
+        const btnRed = document.getElementById('btnRed');
+        const btnBlue = document.getElementById('btnBlue');
+        const rangeBrush = document.getElementById('brushSize');
+        const btnPlay = document.getElementById('btnPlay');
+        const btnExport = document.getElementById('btnExport');
+        const btnClear = document.getElementById('btnClear');
+        const exportText = document.getElementById('exportText');
+        const hintOverlay = document.getElementById('hintOverlay');
+        const statusPathCount = document.getElementById('statusPathCount');
+        const statusScale = document.getElementById('statusScale');
+        const errorToast = document.getElementById('errorToast');
+        
+        // Inputs
+        const inputFieldWidth = document.getElementById('inputFieldWidth');
+        const inputMaxSpeed = document.getElementById('inputMaxSpeed');
+        const inputMaxAccel = document.getElementById('inputMaxAccel');
+
+        // Timing Elements
+        const pathListEl = document.getElementById('pathList');
+        const totalDurationEl = document.getElementById('totalDuration');
+        const totalDistanceEl = document.getElementById('totalDistance');
+
+        // Modal
+        const confirmModal = document.getElementById('confirmModal');
+        const btnConfirmClear = document.getElementById('btnConfirmClear');
+        const btnCancelClear = document.getElementById('btnCancelClear');
+
+        // --- Initialization ---
+
+        function init() {
+            lucide.createIcons();
+            handleResize();
+            redrawCanvas();
+            updateUIState();
+            
+            window.addEventListener('resize', handleResize);
+        }
+
+        // --- Motion Profiling Logic ---
+
+        function applyMotionProfile(rawPoints) {
+            if (rawPoints.length < 2) return { points: rawPoints, duration: 0, distance: 0 };
+
+            // 1. Calculate Pixels to Feet ratio
+            // Assumption: Image width represents the field width input
+            const pixelsToFeet = physics.fieldWidth / canvas.width;
+
+            // 2. Calculate cumulative distances in Feet
+            const dists = [0]; // distance at each point
+            let totalDistFeet = 0;
+            
+            for (let i = 1; i < rawPoints.length; i++) {
+                const dx = rawPoints[i].x - rawPoints[i-1].x;
+                const dy = rawPoints[i].y - rawPoints[i-1].y;
+                const dPixel = Math.sqrt(dx*dx + dy*dy);
+                const dFeet = dPixel * pixelsToFeet;
+                totalDistFeet += dFeet;
+                dists.push(totalDistFeet);
+            }
+
+            // 3. Trapezoidal Profile Calculation
+            // t_accel = v_max / a_max
+            // d_accel = 0.5 * a_max * t_accel^2
+            const vMax = physics.maxSpeed;
+            const aMax = physics.maxAccel;
+            
+            const timeToMaxSpeed = vMax / aMax;
+            const distToMaxSpeed = 0.5 * aMax * (timeToMaxSpeed * timeToMaxSpeed);
+            
+            let totalTime = 0;
+            let isTriangle = false;
+
+            if (totalDistFeet < 2 * distToMaxSpeed) {
+                // Triangle Profile (Never reach max speed)
+                isTriangle = true;
+                const halfTime = Math.sqrt(totalDistFeet / aMax);
+                totalTime = 2 * halfTime;
+            } else {
+                // Trapezoid Profile
+                const cruiseDist = totalDistFeet - (2 * distToMaxSpeed);
+                const cruiseTime = cruiseDist / vMax;
+                totalTime = (2 * timeToMaxSpeed) + cruiseTime;
+            }
+
+            // 4. Map time to each point based on distance
+            const processedPoints = rawPoints.map((p, i) => {
+                const d = dists[i];
+                let t = 0;
+
+                if (isTriangle) {
+                    const halfDist = totalDistFeet / 2;
+                    if (d <= halfDist) {
+                        // Accelerating: d = 0.5 * a * t^2 -> t = sqrt(2d/a)
+                        t = Math.sqrt(2 * d / aMax);
+                    } else {
+                        // Decelerating (Symmetric)
+                        // Time remaining = time to cover (total - d) from stop
+                        const dRemaining = totalDistFeet - d;
+                        const tRemaining = Math.sqrt(2 * dRemaining / aMax);
+                        t = totalTime - tRemaining;
+                    }
+                } else {
+                    // Trapezoid
+                    if (d <= distToMaxSpeed) {
+                        // Accel
+                        t = Math.sqrt(2 * d / aMax);
+                    } else if (d > totalDistFeet - distToMaxSpeed) {
+                        // Decel
+                        const dRemaining = totalDistFeet - d;
+                        const tRemaining = Math.sqrt(2 * dRemaining / aMax);
+                        t = totalTime - tRemaining;
+                    } else {
+                        // Cruise
+                        // t = t_accel + (d - d_accel) / v_max
+                        t = timeToMaxSpeed + ((d - distToMaxSpeed) / vMax);
+                    }
+                }
+                
+                // Convert seconds to milliseconds for the app logic
+                return { ...p, t: t * 1000 }; 
+            });
+
+            return {
+                points: processedPoints,
+                duration: totalTime * 1000, // ms
+                distance: totalDistFeet
+            };
+        }
+
+        function recalculateAllPaths() {
+            // Update physics object from inputs
+            physics.fieldWidth = parseFloat(inputFieldWidth.value) || 54;
+            physics.maxSpeed = parseFloat(inputMaxSpeed.value) || 14;
+            physics.maxAccel = parseFloat(inputMaxAccel.value) || 8;
+
+            if (bgImageObj) {
+                const ratio = (canvas.width / physics.fieldWidth).toFixed(1);
+                statusScale.textContent = `Scale: 1 ft ≈ ${ratio} px`;
+            }
+
+            // Reprocess all existing paths
+            paths = paths.map(p => {
+                // Strip old timing, keep geometry
+                const rawPoints = p.points.map(pt => ({x: pt.x, y: pt.y}));
+                const result = applyMotionProfile(rawPoints);
+                return {
+                    ...p,
+                    points: result.points,
+                    duration: result.duration,
+                    distanceFeet: result.distance
+                };
+            });
+
+            renderPathList();
+            redrawCanvas(); // Just to refresh view
+        }
+
+        // --- DOM Listeners for Inputs ---
+        [inputFieldWidth, inputMaxSpeed, inputMaxAccel].forEach(input => {
+            input.addEventListener('change', recalculateAllPaths);
+            input.addEventListener('keyup', recalculateAllPaths);
+        });
+
+        // --- Standard Canvas Logic ---
+
+        function handleResize() {
+            if (bgImageObj) {
+                const containerWidth = container.clientWidth;
+                const scale = containerWidth / bgImageObj.width;
+                const newHeight = bgImageObj.height * scale;
+                
+                canvas.width = bgImageObj.width;
+                canvas.height = bgImageObj.height;
+                
+                canvas.style.width = '100%';
+                canvas.style.height = 'auto';
+                
+                recalculateAllPaths(); // Scale changed, so pixel ratio might seem same relative but safe to update
+            } else {
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientWidth * 0.5;
+            }
+            redrawCanvas();
+        }
+
+        function redrawCanvas(activePath = null, currentTime = null) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (bgImageObj) {
+                ctx.drawImage(bgImageObj, 0, 0, canvas.width, canvas.height);
+            } else {
+                drawPlaceholderGrid();
+            }
+
+            // Saved Paths
+            paths.forEach(p => {
+                let visiblePoints = p.points;
+                if (currentTime !== null) {
+                    visiblePoints = p.points.filter(pt => pt.t <= currentTime);
+                }
+                drawSinglePath(visiblePoints, p.color, p.width, visiblePoints.length > 0 && currentTime !== null);
+            });
+
+            // Active Path (Recording)
+            if (activePath && activePath.length > 0) {
+                // While drawing, we don't know physics yet, just draw lines
+                drawSinglePath(activePath, selectedColor, brushSize, false);
+            }
+        }
+
+        function drawSinglePath(pts, color, width, drawHead = false) {
+            if (pts.length < 1) return;
+            if (pts.length === 1) {
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, width, 0, Math.PI * 2); ctx.fill();
+                return;
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+                ctx.lineTo(pts[i].x, pts[i].y);
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, width, 0, Math.PI * 2); ctx.fill();
+
+            if (drawHead) {
+                const lastPt = pts[pts.length - 1];
+                ctx.fillStyle = color;
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 5;
+                ctx.beginPath(); ctx.arc(lastPt.x, lastPt.y, width * 1.5, 0, Math.PI * 2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function drawPlaceholderGrid() {
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            const gridSize = 50;
+            for(let x=0; x<canvas.width; x+=gridSize) {
+                ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+            }
+            for(let y=0; y<canvas.height; y+=gridSize) {
+                ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+            }
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '30px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("Upload FRC 2026 Field Image", canvas.width/2, canvas.height/2);
+        }
+
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function startDrawing(e) {
+            if (e.cancelable) e.preventDefault();
+            if (isPlaying || isRendering) return;
+
+            isRecording = true;
+            canvas.style.cursor = 'crosshair';
+            hintOverlay.classList.add('hidden');
+
+            const coords = getCanvasCoords(e);
+            currentPathRaw = [coords]; // Start fresh geometry
+        }
+
+        function draw(e) {
+            if (e.cancelable) e.preventDefault();
+            if (!isRecording) return;
+            const coords = getCanvasCoords(e);
+            currentPathRaw.push(coords);
+            redrawCanvas(currentPathRaw);
+        }
+
+        function stopDrawing(e) {
+            if (e && e.cancelable) e.preventDefault();
+            if (!isRecording) return;
+            
+            isRecording = false;
+            canvas.style.cursor = 'default';
+
+            if (currentPathRaw.length > 1) {
+                // Apply physics immediately upon stopping
+                const result = applyMotionProfile(currentPathRaw);
+                
+                paths.push({
+                    id: Date.now(),
+                    points: result.points,
+                    color: selectedColor,
+                    width: parseInt(brushSize),
+                    duration: result.duration,
+                    distanceFeet: result.distance
+                });
+                updateUIState();
+                renderPathList();
+            }
+            currentPathRaw = [];
+            redrawCanvas();
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+
+        // --- Controls ---
+
+        btnRed.addEventListener('click', () => { selectedColor = '#EF4444'; updateColorButtons(); });
+        btnBlue.addEventListener('click', () => { selectedColor = '#3B82F6'; updateColorButtons(); });
+        rangeBrush.addEventListener('input', (e) => brushSize = e.target.value);
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        bgImageObj = img;
+                        paths = []; 
+                        handleResize();
+                        updateUIState();
+                        renderPathList();
+                        hintOverlay.classList.remove('hidden');
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        btnClear.addEventListener('click', () => { if (paths.length > 0) confirmModal.classList.remove('hidden'); });
+        btnCancelClear.addEventListener('click', () => confirmModal.classList.add('hidden'));
+        btnConfirmClear.addEventListener('click', () => {
+             paths = []; updateUIState(); renderPathList(); redrawCanvas(); confirmModal.classList.add('hidden');
+        });
+
+        function updateColorButtons() {
+            if (selectedColor === '#EF4444') {
+                btnRed.className = "flex-1 py-2 rounded-lg flex justify-center items-center border-2 transition bg-red-500/20 border-red-500 text-red-400 text-sm font-medium";
+                btnBlue.className = "flex-1 py-2 rounded-lg flex justify-center items-center border-2 transition border-slate-600 hover:bg-slate-700 text-sm font-medium";
+            } else {
+                btnRed.className = "flex-1 py-2 rounded-lg flex justify-center items-center border-2 transition border-slate-600 hover:bg-slate-700 text-sm font-medium";
+                btnBlue.className = "flex-1 py-2 rounded-lg flex justify-center items-center border-2 transition bg-blue-500/20 border-blue-500 text-blue-400 text-sm font-medium";
+            }
+        }
+
+        function updateUIState() {
+            statusPathCount.textContent = `${paths.length} path(s)`;
+            const hasPaths = paths.length > 0;
+            btnPlay.disabled = !hasPaths || isPlaying || isRendering;
+            btnExport.disabled = !hasPaths || isRendering;
+            
+            if(btnPlay.disabled) btnPlay.classList.add('opacity-50', 'cursor-not-allowed');
+            else btnPlay.classList.remove('opacity-50', 'cursor-not-allowed');
+            if(btnExport.disabled) btnExport.classList.add('opacity-50', 'cursor-not-allowed');
+            else btnExport.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        function renderPathList() {
+            pathListEl.innerHTML = '';
+            if (paths.length === 0) {
+                pathListEl.innerHTML = '<div class="text-slate-500 text-xs italic py-2 text-center">No paths recorded yet.</div>';
+                totalDurationEl.textContent = '0.00s';
+                totalDurationEl.classList.remove('text-red-400');
+                totalDurationEl.classList.add('text-emerald-400');
+                totalDistanceEl.textContent = '0.0 ft';
+                return;
+            }
+
+            let totalMs = 0;
+            let totalFt = 0;
+            
+            paths.forEach((p, index) => {
+                totalMs += p.duration;
+                totalFt += p.distanceFeet;
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-slate-700/50 px-3 py-2 rounded-lg text-sm border border-slate-700/50 hover:border-slate-600 transition";
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full" style="background-color: ${p.color}"></div>
+                            <span class="text-slate-300 font-medium text-xs">Path ${index + 1}</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500 pl-4">${p.distanceFeet.toFixed(1)} ft</span>
+                    </div>
+                    <span class="font-mono text-blue-300 font-bold text-xs">${(p.duration/1000).toFixed(2)}s</span>
+                `;
+                pathListEl.appendChild(div);
+            });
+
+            totalDurationEl.textContent = (totalMs / 1000).toFixed(2) + 's';
+            totalDistanceEl.textContent = totalFt.toFixed(1) + ' ft';
+
+            if (totalMs > 15000) {
+                totalDurationEl.classList.add('text-red-400');
+                totalDurationEl.classList.remove('text-emerald-400');
+            } else {
+                totalDurationEl.classList.add('text-emerald-400');
+                totalDurationEl.classList.remove('text-red-400');
+            }
+        }
+
+        function showError(msg) {
+            errorToast.textContent = msg;
+            errorToast.classList.remove('hidden');
+            setTimeout(() => errorToast.classList.add('hidden'), 4000);
+        }
+
+        // --- Animation / Export ---
+
+        function animatePaths(onComplete) {
+            const maxDuration = paths.reduce((max, p) => Math.max(max, p.duration || 0), 0);
+            if (maxDuration === 0) { onComplete(); return; }
+            let startTimestamp = null;
+            function step(timestamp) {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const elapsed = timestamp - startTimestamp;
+                redrawCanvas(null, elapsed);
+                if (elapsed < maxDuration) requestAnimationFrame(step);
+                else { redrawCanvas(null, maxDuration); onComplete(); }
+            }
+            requestAnimationFrame(step);
+        }
+
+        btnPlay.addEventListener('click', () => {
+            if (isPlaying || isRendering || paths.length === 0) return;
+            isPlaying = true;
+            updateUIState();
+            animatePaths(() => {
+                isPlaying = false;
+                updateUIState();
+                setTimeout(() => redrawCanvas(), 500);
+            });
+        });
+
+        btnExport.addEventListener('click', () => {
+            if (paths.length === 0 || isRendering) return;
+            isRendering = true;
+            updateUIState();
+            const originalText = exportText.innerHTML;
+            exportText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Rendering...`;
+            btnExport.classList.add('bg-amber-600'); btnExport.classList.remove('bg-indigo-600');
+
+            const stream = canvas.captureStream(30);
+            let mimeType = 'video/webm';
+            if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9')) mimeType = 'video/webm; codecs=vp9';
+            else if (MediaRecorder.isTypeSupported('video/mp4')) mimeType = 'video/mp4';
+
+            let recorder;
+            try { recorder = new MediaRecorder(stream, { mimeType }); } 
+            catch (e) {
+                showError("Browser not supported.");
+                isRendering = false; updateUIState();
+                exportText.innerHTML = originalText;
+                btnExport.classList.remove('bg-amber-600'); btnExport.classList.add('bg-indigo-600');
+                return;
+            }
+
+            const chunks = [];
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `FRC_2026_Path_${Date.now()}.${mimeType.includes('mp4')?'mp4':'webm'}`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                isRendering = false; updateUIState();
+                exportText.innerHTML = originalText;
+                btnExport.classList.remove('bg-amber-600'); btnExport.classList.add('bg-indigo-600');
+                redrawCanvas();
+            };
+            recorder.start();
+            animatePaths(() => setTimeout(() => recorder.stop(), 100));
+        });
+
+        init();
+    </script>
+</body>
+</html>

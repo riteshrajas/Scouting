@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate OPR Simulator</title>
+    
+    <!-- Tailwind CSS for Layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+
+    <!-- Chart.js for Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Math.js for Matrix Calculations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.0/math.js"></script>
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* Custom Scrollbar for matrix overflow */
+        .matrix-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+        .matrix-scroll::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        .matrix-scroll::-webkit-scrollbar-thumb {
+            background: #3b82f6; 
+            border-radius: 4px;
+        }
+
+        /* Tooltip animation */
+        .annotation-box {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto mb-8 border-b border-slate-700 pb-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-bold text-blue-500 flex items-center gap-2">
+                    <i class="ph ph-calculator"></i> The Math Behind OPR
+                </h1>
+                <p class="text-slate-400 mt-2 text-sm md:text-base">
+                    Based on The Blue Alliance Blog by Eugene Fang. Solving the Overdetermined System via Least Squares.
+                </p>
+            </div>
+            <div class="flex items-center gap-3 bg-slate-800 p-2 rounded-lg border border-slate-700">
+                <span class="text-sm font-semibold text-amber-400">Explain Mode</span>
+                <button id="explainToggle" class="relative w-12 h-6 rounded-full bg-slate-600 transition-colors duration-200 focus:outline-none ring-2 ring-offset-2 ring-offset-slate-900 ring-transparent" onclick="toggleExplainMode()">
+                    <div id="explainKnob" class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform duration-200"></div>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- LEFT COLUMN: INPUTS -->
+        <section class="lg:col-span-4 space-y-6">
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="ph ph-list-numbers"></i> Match Results
+                    </h2>
+                    <button onclick="resetDefault()" class="text-xs text-blue-400 hover:text-blue-300 underline">Reset to 3v3 Example</button>
+                </div>
+                
+                <p class="text-sm text-slate-400 mb-4">
+                    Define 3-team alliances (Team 1 + Team 2 + Team 3 = Score). 
+                    The system builds the equation <span class="font-mono text-amber-400">A + B + C = Score</span>.
+                </p>
+
+                <div id="matchesContainer" class="space-y-3 mb-4 max-h-[400px] overflow-y-auto pr-2">
+                    <!-- Matches injected via JS -->
+                </div>
+
+                <button onclick="addMatch()" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2">
+                    <i class="ph ph-plus"></i> Add Match
+                </button>
+            </div>
+
+            <!-- Calculated OPR Results Card -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="ph ph-trophy"></i> Calculated OPRs
+                </h2>
+                <div id="resultsContainer" class="grid grid-cols-2 gap-4">
+                    <!-- OPR Cards injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: VISUALIZATION & MATH -->
+        <section class="lg:col-span-8 space-y-8">
+            
+            <!-- Step 0: The Algebra -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                    <span class="text-6xl font-black text-white">0</span>
+                </div>
+                <h3 class="text-lg font-bold text-green-400 mb-2">The Basic Algebra</h3>
+                <p class="text-slate-400 text-sm mb-4">
+                    Before matrices, we just have simple addition equations based on the matches you entered.
+                </p>
+                <div class="annotation-box hidden mb-4 bg-green-900/30 border border-green-500/50 p-3 rounded text-sm text-green-200">
+                    <strong>Simple English:</strong> If Team A, B, and C played together and got 30 points, we assume their individual contributions add up to 30.
+                </div>
+                <div id="latex-step0" class="text-lg md:text-xl font-mono bg-slate-900 p-4 rounded border border-slate-700"></div>
+            </div>
+
+            <!-- Step 1: The Raw System -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                    <span class="text-6xl font-black text-white">1</span>
+                </div>
+                <h3 class="text-lg font-bold text-blue-400 mb-2">The Matrix System (Mx = s)</h3>
+                <div class="annotation-box hidden mb-4 bg-blue-900/30 border border-blue-500/50 p-3 rounded text-sm text-blue-200">
+                    <strong>Translation:</strong> We take the equations from Step 0 and strip out the letters. 
+                    <br><strong>Rows (M1, M2...)</strong> = Match Number. 
+                    <br><strong>Columns</strong> = Team Names.
+                    <br><strong>1</strong> = Yes (Team was there). 
+                    <br><strong>0</strong> = No (Team wasn't there).
+                </div>
+                <div class="overflow-x-auto matrix-scroll pb-4">
+                    <div id="latex-step1" class="text-lg md:text-xl"></div>
+                </div>
+            </div>
+
+            <!-- Step 2: The Transpose -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                   <span class="text-6xl font-black text-white">2</span>
+               </div>
+               <h3 class="text-lg font-bold text-purple-400 mb-2">The Transpose ($M^T$)</h3>
+               <p class="text-slate-400 text-sm mb-4">
+                   We flip the matrix on its side. Now, Rows = Teams, Cols = Matches.
+               </p>
+               <div class="annotation-box hidden mb-4 bg-purple-900/30 border border-purple-500/50 p-3 rounded text-sm text-purple-200">
+                   <strong>Why?</strong> We need to multiply the Match Data by itself to find relationships between teams. To do that, the dimensions have to match (Rows × Cols). Flipping it makes the dimensions line up.
+               </div>
+               <div class="overflow-x-auto matrix-scroll pb-4">
+                   <div id="latex-step1-5" class="text-lg md:text-xl"></div>
+               </div>
+           </div>
+
+            <!-- Step 3: Building M^T * M (LHS) -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                    <span class="text-6xl font-black text-white">3</span>
+                </div>
+                <h3 class="text-lg font-bold text-amber-400 mb-2">Building LHS: Mᵀ × M (Team Co-occurrences)</h3>
+                
+                <div class="annotation-box hidden mb-4 bg-amber-900/30 border border-amber-500/50 p-3 rounded text-sm text-amber-200">
+                    <strong>What does Mᵀ × M mean?</strong>
+                    <p class="mt-1">We multiply the transpose of M by M itself. This creates a new matrix where:</p>
+                    <ul class="list-disc pl-5 mt-1 space-y-1">
+                        <li><strong>Diagonal elements:</strong> How many matches each team played</li>
+                        <li><strong>Off-diagonal (i,j):</strong> How many matches team i and team j played TOGETHER</li>
+                    </ul>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-300 mb-2">Step 1: Show Matrices to Multiply</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
+                                <div class="text-xs text-slate-500 mb-2 font-mono">Mᵀ (Teams × Matches)</div>
+                                <div id="latex-mTranspose" class="text-center text-sm"></div>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
+                                <div class="text-xs text-slate-500 mb-2 font-mono">M (Matches × Teams)</div>
+                                <div id="latex-M-again" class="text-center text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-700 p-3 rounded border border-slate-600">
+                        <p class="text-xs font-mono text-slate-300 mb-2">📊 Calculating Each Entry Manually:</p>
+                        <div id="lhs-detail-breakdown" class="space-y-2 text-sm font-mono text-amber-300">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded border border-slate-700 overflow-x-auto">
+                        <div class="text-xs text-slate-500 mb-2 font-mono text-center">Final LHS (Mᵀ × M) - Labeled</div>
+                        <div id="latex-step2-lhs" class="text-center"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Building M^T * s (RHS) -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                    <span class="text-6xl font-black text-white">4</span>
+                </div>
+                <h3 class="text-lg font-bold text-green-400 mb-2">Building RHS: Mᵀ × s (Total Scores Per Team)</h3>
+                
+                <div class="annotation-box hidden mb-4 bg-green-900/30 border border-green-500/50 p-3 rounded text-sm text-green-200">
+                    <strong>What does Mᵀ × s mean?</strong>
+                    <p class="mt-1">For each team, we sum up all the match scores where that team participated.</p>
+                    <ul class="list-disc pl-5 mt-1 space-y-1">
+                        <li><strong>Team A's row:</strong> Sum of all scores from matches where Team A played</li>
+                        <li><strong>Team B's row:</strong> Sum of all scores from matches where Team B played</li>
+                        <li>... and so on</li>
+                    </ul>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-300 mb-2">Step 1: Show Matrices to Multiply</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
+                                <div class="text-xs text-slate-500 mb-2 font-mono">Mᵀ (Teams × Matches)</div>
+                                <div id="latex-mTranspose2" class="text-center text-sm"></div>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
+                                <div class="text-xs text-slate-500 mb-2 font-mono">s (Match Scores)</div>
+                                <div id="latex-s-vector" class="text-center text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-700 p-3 rounded border border-slate-600">
+                        <p class="text-xs font-mono text-slate-300 mb-2">📊 Calculating Each Entry Step-by-Step:</p>
+                        <div id="rhs-detail-breakdown" class="space-y-2 text-sm font-mono text-green-300">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded border border-slate-700 overflow-x-auto">
+                        <div class="text-xs text-slate-500 mb-2 font-mono text-center">Final RHS (Mᵀ × s)</div>
+                        <div id="latex-step2-rhs" class="text-center"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: The Inverse Matrix (New Step) -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                 <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                    <span class="text-6xl font-black text-white">5</span>
+                </div>
+                <h3 class="text-lg font-bold text-pink-400 mb-2">The Inverse Matrix: (MᵀM)⁻¹</h3>
+                
+                <div class="bg-pink-900/20 border border-pink-500/30 p-4 rounded mb-4">
+                    <p class="text-sm font-bold text-pink-200 mb-2 flex items-center gap-2">
+                        <i class="ph ph-translate text-lg"></i> Plain English Translation
+                    </p>
+                    <p class="text-sm text-pink-100 mb-2">
+                        This matrix "undoes" the shared history of matches. You'll notice a pattern in the numbers (like 0.78 and -0.22):
+                    </p>
+                    <ul class="list-disc pl-5 text-sm text-pink-200 space-y-1 mb-3">
+                        <li><strong>Positive Diagonals (e.g. 0.78):</strong> This "adds" a large chunk of the score sum where this team played.</li>
+                        <li><strong>Negative Off-Diagonals (e.g. -0.22):</strong> This "subtracts" a portion of the scores where their <strong>partners</strong> played.</li>
+                    </ul>
+                    
+                    <div class="bg-pink-950/40 p-3 rounded border border-pink-500/20">
+                        <strong class="text-pink-300 text-xs uppercase tracking-wide">Why exactly 0.78 and -0.22?</strong>
+                        <p class="text-xs text-pink-200 mt-1">
+                            These clean numbers happen because this example schedule is <strong>perfectly symmetrical</strong> (everyone plays 3 matches, everyone partners twice). 
+                            <br><br>
+                            Mathematically, the inverse of a matrix with 3s on the diagonal and 2s everywhere else results in exactly 7/9 (≈0.78) and -2/9 (≈-0.22). 
+                            If you add a random match, this symmetry breaks and the numbers get messy!
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 p-4 rounded border border-slate-700 overflow-x-auto">
+                    <div id="latex-inverse" class="text-center text-sm"></div>
+                </div>
+            </div>
+
+            <!-- Step 6: Solving for OPR -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition">
+                    <span class="text-6xl font-black text-white">6</span>
+                </div>
+                <h3 class="text-lg font-bold text-cyan-400 mb-2">Final Solution: OPR = Inverse × RHS</h3>
+                
+                <div class="annotation-box hidden mb-4 bg-cyan-900/30 border border-cyan-500/50 p-3 rounded text-sm text-cyan-200">
+                    <strong>The Final Step:</strong>
+                    <p class="mt-1">We multiply the Inverse Matrix (Step 5) by the Score Sums (Step 4).</p>
+                    <p class="font-mono mt-1 text-xs">x = (Mᵀ × M)⁻¹ × (Mᵀ × s)</p>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Step 3: Show multiplication -->
+                    <div class="bg-slate-700 p-4 rounded border border-slate-600">
+                        <p class="text-sm font-semibold text-slate-300 mb-3">Multiply Inverse × RHS to Get OPR Values</p>
+                        <div id="multiplication-detail" class="space-y-2 text-sm font-mono text-cyan-300 mb-3">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Show final OPR -->
+                    <div class="bg-slate-900 p-4 rounded border border-slate-700">
+                        <p class="text-sm font-semibold text-slate-300 mb-3">✅ Final OPR Solution</p>
+                        <div id="solution-breakdown" class="space-y-2 text-sm font-mono text-green-300">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Verification -->
+                    <div class="bg-slate-700 p-4 rounded border border-slate-600">
+                        <p class="text-sm font-semibold text-slate-300 mb-3">🔍 Verification: Do These OPRs Predict the Match Scores?</p>
+                        <div id="verification-detail" class="space-y-1 text-sm font-mono text-blue-300">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                 <!-- Debug Output -->
+                 <div class="bg-slate-900/60 p-4 rounded border border-slate-700 mt-6">
+                    <p class="text-sm font-semibold text-slate-300 mb-2">🧾 Debug View (raw numbers)</p>
+                    <pre id="debug-panel" class="text-xs bg-slate-950 text-slate-200 p-3 rounded overflow-x-auto"></pre>
+                </div>
+            </div>
+
+            <!-- Visualization -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                    <h3 class="text-lg font-bold text-white mb-4">OPR Chart</h3>
+                    <canvas id="oprChart"></canvas>
+                </div>
+                <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                    <h3 class="text-lg font-bold text-white mb-4">Accuracy (Residuals)</h3>
+                    <p class="text-xs text-slate-400 mb-2">How far off the OPR prediction is from the actual match score.</p>
+                    <canvas id="residualChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="max-w-7xl mx-auto mt-12 text-center text-slate-500 text-sm pb-8">
+        <p>Built for the FRC Community. Matrix math powered by Math.js.</p>
+    </footer>
+
+    <script>
+        // --- CONFIG & STATE ---
+        let matches = [];
+        let teams = [];
+        let isExplainMode = false;
+        let oprChartInstance = null;
+        let residualChartInstance = null;
+        let errorLog = [];
+
+        function pushError(msg, err) {
+            const full = err ? `${msg}: ${err.message || err}` : msg;
+            errorLog.push(full);
+            console.error(full, err || '');
+            const dbg = document.getElementById('debug-panel');
+            if (dbg) {
+                dbg.textContent = `ERROR: ${full}\n` + dbg.textContent;
+            }
+        }
+
+        function safeKatexRender(tex, elementId, fallbackText) {
+            const el = document.getElementById(elementId);
+            if(!el) return;
+            try {
+                if (window.katex && tex) {
+                    katex.render(tex, el, { throwOnError: false, displayMode: true });
+                    return;
+                }
+            } catch (e) {
+                pushError(`KaTeX render failed for ${elementId}`, e);
+            }
+            el.textContent = fallbackText || tex || '';
+        }
+
+        window.addEventListener('error', (e) => {
+            pushError('Window error', e.error || e.message);
+        });
+
+        // --- INITIALIZATION ---
+        function init() {
+            // Updated to 3v3 Example
+            // True OPRs: A=10, B=5, C=15, D=20
+            matches = [
+                { t1: 'A', t2: 'B', t3: 'C', score: 30 }, // 10+5+15
+                { t1: 'A', t2: 'B', t3: 'D', score: 35 }, // 10+5+20
+                { t1: 'A', t2: 'C', t3: 'D', score: 45 }, // 10+15+20
+                { t1: 'B', t2: 'C', t3: 'D', score: 40 }  // 5+15+20
+            ];
+            render();
+        }
+
+        function resetDefault() {
+            init();
+        }
+
+        function toggleExplainMode() {
+            isExplainMode = !isExplainMode;
+            const knob = document.getElementById('explainKnob');
+            const btn = document.getElementById('explainToggle');
+            const boxes = document.querySelectorAll('.annotation-box');
+
+            if(isExplainMode) {
+                knob.classList.add('translate-x-6');
+                btn.classList.replace('bg-slate-600', 'bg-blue-600');
+                boxes.forEach(b => b.classList.remove('hidden'));
+            } else {
+                knob.classList.remove('translate-x-6');
+                btn.classList.replace('bg-blue-600', 'bg-slate-600');
+                boxes.forEach(b => b.classList.add('hidden'));
+            }
+        }
+
+        // --- LOGIC ---
+
+        function extractTeams() {
+            const tSet = new Set();
+            matches.forEach(m => {
+                if(m.t1) tSet.add(m.t1);
+                if(m.t2) tSet.add(m.t2);
+                if(m.t3) tSet.add(m.t3);
+            });
+            return Array.from(tSet).sort();
+        }
+
+        function getMatrixM(teamList) {
+            // Rows = Matches, Cols = Teams
+            return matches.map(m => {
+                return teamList.map(t => (t === m.t1 || t === m.t2 || t === m.t3) ? 1 : 0);
+            });
+        }
+
+        function getVectorS() {
+            return matches.map(m => m.score);
+        }
+
+        function calculateOPR() {
+            try {
+                if (!window.math) throw new Error('math.js failed to load');
+
+                teams = extractTeams();
+                if(teams.length === 0) throw new Error('No teams found');
+
+                // 1. Construct Matrices
+                const M = getMatrixM(teams); // Array of Arrays
+                const s = getVectorS();      // Array
+
+                // 2. Convert to MathJS matrices
+                const matM = math.matrix(M);
+                const matS = math.matrix(s);
+
+                // 3. Transpose
+                const matT = math.transpose(matM);
+
+                // 4. Normal Equation: (M^T * M) * x = (M^T * s)
+                const LHS = math.multiply(matT, matM); // The "Co-op" matrix
+                const RHS = math.multiply(matT, matS); // The sum of scores
+
+                // 5. Solve for x (OPR)
+                let x;
+                try {
+                    x = math.lusolve(LHS, RHS); 
+                } catch (e) {
+                    pushError('LHS singular, using ridge', e);
+                    const invLHS = math.inv(math.add(LHS, math.multiply(math.identity(teams.length), 0.001))); // Ridge regression hack
+                    x = math.multiply(invLHS, RHS);
+                }
+
+                // Flatten result
+                const oprValues = x.valueOf().map(row => Array.isArray(row) ? row[0] : row);
+
+                // 6. Calculate Errors (Residuals)
+                const predictions = math.multiply(matM, x).valueOf().map(row => Array.isArray(row) ? row[0] : row);
+                const residuals = s.map((actual, i) => actual - predictions[i]);
+
+                return {
+                    M: M,
+                    s: s,
+                    matT: matT.valueOf(), 
+                    LHS: LHS.valueOf(),
+                    RHS: RHS.valueOf(), 
+                    opr: oprValues,
+                    predictions: predictions,
+                    residuals: residuals
+                };
+            } catch(e) {
+                pushError('calculateOPR failed', e);
+                return null;
+            }
+        }
+
+        // --- DOM MANIPULATION ---
+
+        function render() {
+            renderMatchInputs();
+            const data = calculateOPR();
+            
+            if(!data) {
+                const dbg = document.getElementById('debug-panel');
+                if(dbg) dbg.textContent = `No data (see console). Errors: ${errorLog.join('\n')}`;
+                return;
+            }
+
+            renderResults(data);
+            renderMath(data);
+            renderDetailedLHS(data);
+            renderDetailedRHS(data);
+            renderSolution(data);
+            updateCharts(data);
+        }
+
+        function renderMatchInputs() {
+            const container = document.getElementById('matchesContainer');
+            container.innerHTML = '';
+
+            matches.forEach((m, index) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-700";
+                div.innerHTML = `
+                    <div class="flex-1 grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] gap-1 text-sm items-center">
+                        <input type="text" value="${m.t1 || ''}" onchange="updateMatch(${index}, 't1', this.value)" class="bg-slate-800 border border-slate-600 rounded px-1 py-1 text-center uppercase font-bold text-blue-300 focus:border-blue-500 outline-none w-full" placeholder="T1">
+                        <div class="text-slate-500 text-center font-bold">+</div>
+                        <input type="text" value="${m.t2 || ''}" onchange="updateMatch(${index}, 't2', this.value)" class="bg-slate-800 border border-slate-600 rounded px-1 py-1 text-center uppercase font-bold text-blue-300 focus:border-blue-500 outline-none w-full" placeholder="T2">
+                        <div class="text-slate-500 text-center font-bold">+</div>
+                        <input type="text" value="${m.t3 || ''}" onchange="updateMatch(${index}, 't3', this.value)" class="bg-slate-800 border border-slate-600 rounded px-1 py-1 text-center uppercase font-bold text-blue-300 focus:border-blue-500 outline-none w-full" placeholder="T3">
+                        <div class="text-slate-500 text-center font-bold">=</div>
+                        <input type="number" value="${m.score}" onchange="updateMatch(${index}, 'score', this.value)" class="bg-slate-800 border border-slate-600 rounded px-1 py-1 text-center font-mono text-amber-400 focus:border-amber-500 outline-none w-full">
+                    </div>
+                    <button onclick="removeMatch(${index})" class="text-red-500 hover:text-red-400 p-1 ml-1">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateMatch(index, field, value) {
+            if(field === 'score') matches[index][field] = parseFloat(value) || 0;
+            else matches[index][field] = value.toUpperCase();
+            render();
+        }
+
+        function addMatch() {
+            matches.push({ t1: 'A', t2: 'B', t3: 'C', score: 0 });
+            render();
+        }
+
+        function removeMatch(index) {
+            matches.splice(index, 1);
+            render();
+        }
+
+        function renderResults(data) {
+            const container = document.getElementById('resultsContainer');
+            container.innerHTML = '';
+
+            teams.forEach((team, i) => {
+                const opr = data.opr[i].toFixed(2);
+                const div = document.createElement('div');
+                div.className = "bg-slate-900 p-3 rounded border border-slate-600 text-center";
+                div.innerHTML = `
+                    <div class="text-xs text-slate-400 uppercase tracking-widest">Team</div>
+                    <div class="text-2xl font-black text-white">${team}</div>
+                    <div class="text-sm font-mono text-blue-400 mt-1">OPR: ${opr}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderDetailedLHS(data) {
+            // Render detailed breakdown of LHS calculation (only key examples)
+            const container = document.getElementById('lhs-detail-breakdown');
+            container.innerHTML = '';
+
+            const matM = data.M; // Rows = matches, Cols = teams
+            const matT = data.matT; // Rows = teams, Cols = matches
+            const n = teams.length;
+
+            // Show first row, diagonal, and one off-diagonal entry as examples
+            const entriesToShow = [];
+            for(let i = 0; i < n; i++) {
+                entriesToShow.push([i, i]); // Diagonals
+            }
+            entriesToShow.push([0, 1]); // One off-diagonal example
+
+            entriesToShow.forEach(([i, j]) => {
+                // Get row i of M^T and column j of M
+                const rowMT = matT[i];
+                const colM = matM.map(row => row[j]);
+
+                // Compute dot product with detailed breakdown
+                let dotProd = 0;
+                let terms = [];
+                for(let k = 0; k < matches.length; k++) {
+                    const mtVal = rowMT[k];
+                    const mVal = colM[k];
+                    const product = mtVal * mVal;
+                    dotProd += product;
+                    const matchLabel = `Match ${k+1}`;
+                    terms.push(`M^T[${i}][${k}]×M[${k}][${j}] = ${mtVal}×${mVal}`);
+                }
+
+                const matchStr = i === j 
+                    ? `<strong style="color: #60a5fa;">Team ${teams[i]} participated in ${dotProd} match(es)</strong>`
+                    : `<strong style="color: #60a5fa;">Teams ${teams[i]} & ${teams[j]} played together ${dotProd} time(s)</strong>`;
+
+                let formulaStr = `<strong>LHS[${i}][${j}]</strong> = ${terms.join(' + ')} = ${dotProd}<br>${matchStr}`;
+                
+                const div = document.createElement('div');
+                div.className = "mb-3 p-2 bg-slate-800 rounded";
+                div.innerHTML = formulaStr;
+                container.appendChild(div);
+            });
+
+            const more = document.createElement('div');
+            more.className = "text-xs text-slate-500 italic";
+            more.innerHTML = `... (${n*(n-1)/2 + n - entriesToShow.length} more entries calculated the same way)`;
+            container.appendChild(more);
+        }
+
+        function renderDetailedRHS(data) {
+            // Render detailed breakdown of LHS calculation (show each team as example)
+            const container = document.getElementById('rhs-detail-breakdown');
+            container.innerHTML = '';
+
+            const matT = data.matT; // Rows = teams, Cols = matches
+            const s = data.s;
+
+            // Show all teams for RHS (it's smaller than LHS)
+            for(let i = 0; i < teams.length; i++) {
+                const rowMT = matT[i];
+                let sum = 0;
+                let terms = [];
+
+                for(let k = 0; k < matches.length; k++) {
+                    const mtVal = rowMT[k];
+                    const sVal = s[k];
+                    const product = mtVal * sVal;
+                    
+                    sum += product;
+                    if(mtVal !== 0) {
+                        const matchLabel = `Match ${k+1}`;
+                        terms.push(`M^T[${i}][${k}]×s[${k}] = ${mtVal}×${sVal}`);
+                    } else {
+                         // Show 0 terms clearly
+                         terms.push(`<span class="text-slate-600">0×${sVal}</span>`);
+                    }
+                }
+
+                let formulaStr = `<strong>RHS[${i}]</strong> (Team ${teams[i]})<br>`;
+                formulaStr += `${terms.join(' + ')} = <strong style="color: #34d399;">${sum}</strong>`;
+                formulaStr += `<br><span style="color: #cbd5e1; font-size: 0.875rem;">Total points scored in all matches where Team ${teams[i]} played</span>`;
+
+                const div = document.createElement('div');
+                div.className = "mb-3 p-2 bg-slate-800 rounded";
+                div.innerHTML = formulaStr;
+                container.appendChild(div);
+            }
+        }
+
+        function renderSolution(data) {
+            // Show the inverse matrix
+            renderInverseMatrix(data);
+            
+            // Show the multiplication to get OPR
+            renderMultiplicationDetail(data);
+            
+            // Show final OPR values
+            renderFinalOPR(data);
+            
+            // Show verification
+            renderVerification(data);
+
+            // Dump debug numbers on screen so the user always sees values
+            renderDebugPanel(data);
+        }
+
+        function renderInverseMatrix(data) {
+            try {
+                const container = document.getElementById('latex-inverse');
+                if(!container) return;
+                
+                // Calculate inverse using math.js
+                const LHS = math.matrix(data.LHS);
+                const LHSinv = math.inv(LHS).valueOf();
+                
+                const invTex = matrixToLatex(LHSinv);
+                safeKatexRender(`(M^T M)^{-1} = ${invTex}`, 'latex-inverse', `(M^T M)^(-1) = ${JSON.stringify(LHSinv)}`);
+            } catch(e) {
+                console.error("Error in renderInverseMatrix:", e);
+            }
+        }
+
+        function renderMultiplicationDetail(data) {
+            try {
+                const container = document.getElementById('multiplication-detail');
+                if(!container) return;
+                container.innerHTML = '';
+
+                // Calculate inverse
+                const LHS = math.matrix(data.LHS);
+                const LHSinv = math.inv(LHS).valueOf();
+                
+                const matRHS = data.RHS.map(r => Array.isArray(r) ? r[0] : r);
+
+                // Show the multiplication step by step
+                const div1 = document.createElement('div');
+                div1.innerHTML = `<strong>x = (Mᵀ × M)⁻¹ × (Mᵀ × s)</strong>`;
+                container.appendChild(div1);
+
+                const div2 = document.createElement('div');
+                div2.innerHTML = `<strong style="color: #94a3b8;">For each team, calculate:</strong>`;
+                container.appendChild(div2);
+
+                // For each team's OPR calculation
+                for(let i = 0; i < teams.length; i++) {
+                    let terms = [];
+                    let result = 0;
+
+                    for(let j = 0; j < teams.length; j++) {
+                        const invVal = LHSinv[i][j];
+                        const rhsVal = matRHS[j];
+                        const product = invVal * rhsVal;
+                        result += product;
+                        
+                        terms.push(`${invVal.toFixed(4)}×${rhsVal}`);
+                    }
+
+                    const div = document.createElement('div');
+                    div.innerHTML = `OPR[${teams[i]}] = ${terms.join(' + ')} = ${result.toFixed(2)}`;
+                    container.appendChild(div);
+                }
+            } catch(e) {
+                console.error("Error in renderMultiplicationDetail:", e);
+            }
+        }
+
+        function renderFinalOPR(data) {
+            try {
+                const container = document.getElementById('solution-breakdown');
+                if(!container) return;
+                container.innerHTML = '';
+
+                data.opr.forEach((opr, i) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `<strong>Team ${teams[i]}:</strong> OPR = ${opr.toFixed(2)} points per match`;
+                    container.appendChild(div);
+                });
+            } catch(e) {
+                console.error("Error in renderFinalOPR:", e);
+            }
+        }
+
+        function renderVerification(data) {
+            try {
+                const container = document.getElementById('verification-detail');
+                if(!container) return;
+                container.innerHTML = '';
+
+                const matchLabels = matches.map((m, idx) => `Match ${idx+1} (${m.t1}+${m.t2}+${m.t3})`);
+                
+                matches.forEach((m, idx) => {
+                    const predicted = data.predictions[idx];
+                    const actual = m.score;
+                    const error = Math.abs(actual - predicted).toFixed(2);
+                    
+                    // Build the formula: A + B + C = predicted
+                    let formula = '';
+                    if(m.t1) formula += `${data.opr[teams.indexOf(m.t1)].toFixed(2)}`;
+                    if(m.t2) formula += ` + ${data.opr[teams.indexOf(m.t2)].toFixed(2)}`;
+                    if(m.t3) formula += ` + ${data.opr[teams.indexOf(m.t3)].toFixed(2)}`;
+                    
+                    const div = document.createElement('div');
+                    const statusColor = error < 0.01 ? '#34d399' : '#f87171';
+                    div.innerHTML = `<span style="color: ${statusColor};">${matchLabels[idx]}: ${formula} = ${predicted.toFixed(2)} (Actual: ${actual})</span>`;
+                    container.appendChild(div);
+                });
+            } catch(e) {
+                console.error("Error in renderVerification:", e);
+            }
+        }
+
+            function renderDebugPanel(data) {
+                try {
+                    const container = document.getElementById('debug-panel');
+                    if(!container) return;
+
+                    const debugObj = {
+                        teams: teams,
+                        M: data.M,
+                        s: data.s,
+                        "M^T": data.matT,
+                        "M^T*M": data.LHS,
+                        "M^T*s": data.RHS,
+                        inverse: math.inv(math.matrix(data.LHS)).valueOf(),
+                        opr: data.opr,
+                        predictions: data.predictions,
+                        residuals: data.residuals
+                    };
+
+                    container.textContent = JSON.stringify(debugObj, null, 2);
+                } catch(e) {
+                    console.error("Error in renderDebugPanel:", e);
+                }
+            }
+
+        // --- LATEX RENDERING ---
+
+        function matrixToLatex(matrix, type='matrix') {
+            let str = `\\begin{bmatrix}`;
+            matrix.forEach((row, i) => {
+                if(Array.isArray(row)) {
+                    str += row.map(val => Math.round(val * 100) / 100).join(' & ');
+                } else {
+                    str += Math.round(row * 100) / 100;
+                }
+                if(i < matrix.length - 1) str += `\\\\`;
+            });
+            str += `\\end{bmatrix}`;
+            return str;
+        }
+
+        function labeledMatrixToLatex(matrix, rowLabels, colLabels) {
+            let str = `\\begin{array}{c|${'c'.repeat(colLabels.length)}}`;
+            
+            // Header row
+            str += ` & ${colLabels.map(l => `\\text{${l}}`).join(' & ')} \\\\ \\hline`;
+            
+            // Data rows
+            matrix.forEach((row, i) => {
+                let rowLabel = rowLabels[i] || '';
+                // Handle 1D array vs 2D array
+                let rowData;
+                if (Array.isArray(row)) {
+                    rowData = row;
+                } else {
+                    rowData = [row];
+                }
+                
+                // Map data to string, handle numbers or raw latex strings
+                const formattedRow = rowData.map(val => {
+                    if (typeof val === 'number') return Math.round(val * 100) / 100;
+                    return val; // Assume string/latex
+                });
+
+                str += `\\text{${rowLabel}} & ${formattedRow.join(' & ')} \\\\`;
+            });
+            
+            str += `\\end{array}`;
+            return str;
+        }
+
+        function renderMath(data) {
+            // Step 0: Equations
+            const eqDiv = document.getElementById('latex-step0');
+            eqDiv.innerHTML = matches.map((m, i) => {
+                let str = `Match ${i+1}: `;
+                const t1 = m.t1 || '?';
+                const t2 = m.t2 || '?';
+                const t3 = m.t3 || '?';
+                return `<div class="mb-1"><span class="text-slate-400">${str}</span> <span class="text-blue-300">${t1}</span> + <span class="text-blue-300">${t2}</span> + <span class="text-blue-300">${t3}</span> = <span class="text-amber-400">${m.score}</span></div>`;
+            }).join('');
+
+
+            // Step 1: M x = s
+            const rowLabels = matches.map((_, i) => `M${i+1}`);
+            const colLabels = teams;
+            
+            const mTex = labeledMatrixToLatex(data.M, rowLabels, colLabels);
+            
+            // For x, rows are teams, col is empty or "OPR"
+            const xTex = labeledMatrixToLatex(
+                teams.map(t => [`\\text{OPR}_{${t}}`]), // Data needs to be 2D array for helper
+                teams, 
+                ['x']
+            );
+            
+            // For s, rows are matches, col is "Score"
+            const sTex = labeledMatrixToLatex(
+                data.s.map(s => [s]), 
+                rowLabels, 
+                ['s']
+            );
+            
+            const step1Latex = `${mTex} \\cdot ${xTex} = ${sTex}`;
+            
+            safeKatexRender(step1Latex, 'latex-step1');
+
+            // Step 2: The Transpose
+            const mT_Tex = matrixToLatex(data.matT);
+            safeKatexRender(`M^T = ${mT_Tex}`, 'latex-step1-5');
+
+            // Step 3: Display matrices for LHS calculation
+            safeKatexRender(`M^T = ${mT_Tex}`, 'latex-mTranspose');
+            // Since labeledMatrixToLatex makes a custom array, for multiplication view standard bmatrix is better
+            // But we need consistency. I'll stick to standard bmatrix for calculation steps to keep them clean.
+            const mTexClean = matrixToLatex(data.M);
+            safeKatexRender(`M = ${mTexClean}`, 'latex-M-again');
+
+            // Step 4: Display matrices for RHS calculation
+            const sTexClean = matrixToLatex(data.s);
+            safeKatexRender(`M^T = ${mT_Tex}`, 'latex-mTranspose2');
+            safeKatexRender(`s = ${sTexClean}`, 'latex-s-vector');
+
+            // Step 3 & 4: Normal Eq Results
+            // Step 3 Modified: Add labels to LHS (M^T * M)
+            const lhsTex = labeledMatrixToLatex(data.LHS, teams, teams);
+
+            const flatRHS = data.RHS.map(r => Array.isArray(r) ? r[0] : r);
+            const rhsTex = matrixToLatex(flatRHS);
+
+            safeKatexRender(`M^T M = ${lhsTex}`, 'latex-step2-lhs');
+            safeKatexRender(`M^T s = ${rhsTex}`, 'latex-step2-rhs');
+        }
+
+        // --- CHARTS ---
+
+        function updateCharts(data) {
+            const ctxOPR = document.getElementById('oprChart').getContext('2d');
+            const ctxRes = document.getElementById('residualChart').getContext('2d');
+
+            if (oprChartInstance) oprChartInstance.destroy();
+            oprChartInstance = new Chart(ctxOPR, {
+                type: 'bar',
+                data: {
+                    labels: teams,
+                    datasets: [{
+                        label: 'Offensive Power Rating',
+                        data: data.opr,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#334155' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            if (residualChartInstance) residualChartInstance.destroy();
+            
+            const matchLabels = matches.map((m, i) => `Match ${i+1}`);
+            
+            residualChartInstance = new Chart(ctxRes, {
+                type: 'line',
+                data: {
+                    labels: matchLabels,
+                    datasets: [
+                        {
+                            label: 'Actual Score',
+                            data: matches.map(m => m.score),
+                            borderColor: '#fbbf24',
+                            backgroundColor: '#fbbf24',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Model Prediction',
+                            data: data.predictions,
+                            borderColor: '#3b82f6',
+                            backgroundColor: '#3b82f6',
+                            borderDash: [5, 5],
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { grid: { color: '#334155' } },
+                        x: { grid: { color: '#334155' } }
+                    }
+                }
+            });
+            
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.borderColor = '#334155';
+        }
+
+        init();
+
+    </script>
+</body>
+</html>

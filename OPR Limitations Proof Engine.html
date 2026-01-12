@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPR Limitations Simulator</title>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Math.js for Matrix Operations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #e2e8f0;
+            --accent: #3b82f6;
+            --accent-dim: rgba(59, 130, 246, 0.2);
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 { border-bottom: 2px solid var(--accent); padding-bottom: 10px; margin-bottom: 30px; }
+        h2 { margin-top: 0; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+        h3 { color: #94a3b8; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 20px;}
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .card {
+            background-color: var(--card);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+        }
+
+        /* Formula Decoder Styles */
+        .decoder-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .decoder-item {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
+        }
+        .symbol {
+            font-family: monospace;
+            font-size: 1.4em;
+            color: var(--warning);
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .meaning { font-size: 0.9em; color: #cbd5e1; }
+
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        button:hover { background-color: #2563eb; transform: translateY(-1px); }
+
+        .formula-box {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: var(--success);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.95em;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px 15px;
+            border-bottom: 1px solid #334155;
+        }
+        th { background: rgba(255,255,255,0.05); color: var(--accent); font-weight: 600; }
+        
+        .highlight-red { color: var(--danger); font-weight: bold; }
+        .highlight-green { color: var(--success); font-weight: bold; }
+        .highlight-warn { color: var(--warning); font-weight: bold; }
+
+        .explanation {
+            background: var(--accent-dim);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.95em;
+            border-left: 4px solid var(--accent);
+        }
+        .explanation strong { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>OPR Limitations Proof Engine</h1>
+
+    <!-- FORMULA DECODER SECTION -->
+    <div class="card" style="margin-bottom: 30px; border-color: var(--warning);">
+        <h2 style="color: var(--warning);">Formula Decoder: What does (...) mean?</h2>
+        <div class="formula-box">
+            x = (M<sup>T</sup>M)<sup>-1</sup> M<sup>T</sup> s
+        </div>
+        <p>The parentheses <strong>(...)</strong> group the "Schedule" and the "Transpose" together so we can invert them as one unit. Think of it like algebra: you have to calculate $(2 + 2) \times 5$ before you get $20$. Here is the breakdown:</p>
+        
+        <div class="decoder-grid">
+            <div class="decoder-item">
+                <span class="symbol">M</span>
+                <span class="meaning"><strong>The Schedule:</strong> A giant grid of 0s and 1s representing who played in which match.</span>
+            </div>
+            <div class="decoder-item">
+                <span class="symbol">M<sup>T</sup></span>
+                <span class="meaning"><strong>Transpose:</strong> We flip the grid sideways. This lines up teams against matches.</span>
+            </div>
+            <div class="decoder-item">
+                <span class="symbol">(M<sup>T</sup>M)</span>
+                <span class="meaning"><strong>The Connection:</strong> This multiplication creates a map of "Who played with whom?"</span>
+            </div>
+            <div class="decoder-item">
+                <span class="symbol"><sup>-1</sup></span>
+                <span class="meaning"><strong>The Inverse:</strong> This is the "Solver." It attempts to untangle the web of alliances to find individual values.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- SCENARIO 1 -->
+        <div class="card">
+            <h2>1. Instability (Early Quals)</h2>
+            <p><strong>The Issue:</strong> With few matches, the "Solver" ($^{-1}$) doesn't have enough data to untangle the teams. It guesses wildly.</p>
+            <div class="controls">
+                <button onclick="runInstabilitySim()">Run Match Progression Sim</button>
+            </div>
+            <canvas id="chartInstability" height="200"></canvas>
+            <div id="instabilityStats" class="explanation" style="display:none;"></div>
+        </div>
+
+        <!-- SCENARIO 2 -->
+        <div class="card">
+            <h2>2. No Signal Separation</h2>
+            <p><strong>The Issue:</strong> OPR only looks at the <strong>Final Score</strong> ($s$). It cannot see <em>how</em> the points were scored (Auto vs Teleop).</p>
+            <div class="controls">
+                <button onclick="runSignalSim()">Analyze Composition</button>
+            </div>
+            <div id="signalOutput"></div>
+        </div>
+
+        <!-- SCENARIO 3 -->
+        <div class="card">
+            <h2>3. False Independence (Synergy)</h2>
+            <p><strong>The Issue:</strong> OPR assumes you are exactly the same robot in every match. It cannot handle "Synergy" (e.g., passing pieces). If you score +20 points <em>only</em> when paired with a specific partner, OPR gets confused.</p>
+            
+            <div class="controls">
+                <button onclick="runSynergySim()">Run Synergy Test</button>
+            </div>
+            
+            <table id="synergyTable">
+                <thead>
+                    <tr>
+                        <th>Scenario</th>
+                        <th>Actual Score</th>
+                        <th>OPR Prediction</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" style="text-align:center; color:#666;">Click "Run Synergy Test" to see data</td></tr>
+                </tbody>
+            </table>
+
+            <div id="synergyExplanation" class="explanation" style="display:none;">
+                <strong>What happened?</strong><br>
+                The OPR formula saw the high scores from the synergy matches and averaged them into <em>both</em> teams' individual values.<br><br>
+                1. <strong>"The Smearing Effect":</strong> It gave both teams a "partial credit" for the synergy bonus, permanently inflating their stats.<br>
+                2. <strong>Playing Apart:</strong> Because their stats are inflated, OPR over-estimates them when they play with others.<br>
+                3. <strong>Playing Together:</strong> Even though their stats are inflated, OPR <em>still</em> under-estimates the super-alliance because it treats the bonus as linear, not exponential.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- UTILITIES: MATRIX SOLVER ---
+    function solveOPR(matches, totalTeams) {
+        const numMatches = matches.length;
+        if (numMatches === 0) return Array(totalTeams).fill(0);
+
+        // M is the Match Matrix (Who played?)
+        // s is the Score Vector (What was the score?)
+        let M = math.zeros(numMatches * 2, totalTeams).toArray(); 
+        let s = math.zeros(numMatches * 2).toArray();
+
+        matches.forEach((match, i) => {
+            let redRow = i * 2;
+            match.red.forEach(teamIndex => M[redRow][teamIndex] = 1);
+            s[redRow] = match.redScore;
+
+            let blueRow = i * 2 + 1;
+            match.blue.forEach(teamIndex => M[blueRow][teamIndex] = 1);
+            s[blueRow] = match.blueScore;
+        });
+
+        const matM = math.matrix(M);
+        const matS = math.matrix(s);
+        const matMT = math.transpose(matM);
+
+        try {
+            const MTM = math.multiply(matMT, matM);
+            // Add tiny noise to diagonal to prevent singular matrix errors in this demo
+            const size = MTM.size()[0];
+            const identity = math.identity(size).map(val => val * 0.001); 
+            const MTM_reg = math.add(MTM, identity); 
+            
+            const invMTM = math.inv(MTM_reg); // The ^-1 step
+            const MTs = math.multiply(matMT, matS);
+            const result = math.multiply(invMTM, MTs);
+            return result.toArray();
+        } catch (e) {
+            console.error("Matrix Unstable", e);
+            return Array(totalTeams).fill(0);
+        }
+    }
+
+    // --- SCENARIO 1: INSTABILITY ---
+    let instChart = null;
+    function runInstabilitySim() {
+        const trueSkills = [10, 20, 30, 40, 50, 60];
+        const numTeams = 6;
+        let matches = [];
+        let labels = [];
+        let history = [[], [], [], [], [], []]; 
+
+        for (let m = 0; m < 15; m++) {
+            // Random 2v2 for 6 teams
+            let indices = [0,1,2,3,4,5].sort(() => Math.random() - 0.5);
+            let red = [indices[0], indices[1]];
+            let blue = [indices[2], indices[3]];
+
+            let redScore = trueSkills[red[0]] + trueSkills[red[1]] + (Math.random() * 10 - 5);
+            let blueScore = trueSkills[blue[0]] + trueSkills[blue[1]] + (Math.random() * 10 - 5);
+
+            matches.push({ red, blue, redScore, blueScore });
+            let currentOPRs = solveOPR(matches, numTeams);
+
+            labels.push(`Match ${m+1}`);
+            currentOPRs.forEach((val, i) => history[i].push(val));
+        }
+
+        renderInstabilityChart(labels, history, trueSkills);
+        const stats = document.getElementById('instabilityStats');
+        stats.style.display = 'block';
+        stats.innerHTML = "<strong>Observation:</strong> Look at the left side of the chart. The lines criss-cross and swing wildly. Team 5 (Top tier) might briefly look worse than Team 0 (Low tier) because of one unlucky match.";
+    }
+
+    function renderInstabilityChart(labels, data, trueSkills) {
+        const ctx = document.getElementById('chartInstability').getContext('2d');
+        if (instChart) instChart.destroy();
+
+        const datasets = data.map((teamData, i) => ({
+            label: `Team ${i} (True: ${trueSkills[i]})`,
+            data: teamData,
+            borderColor: `hsl(${i * 60}, 70%, 60%)`,
+            borderWidth: 2,
+            tension: 0.2,
+            pointRadius: 0
+        }));
+
+        instChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: { display: true, text: 'OPR Convergence Over Time', color: '#94a3b8' },
+                    legend: { labels: { color: '#94a3b8' } }
+                },
+                scales: {
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+
+    // --- SCENARIO 2: NO SIGNAL SEPARATION ---
+    function runSignalSim() {
+        const output = document.getElementById('signalOutput');
+        let html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Team A (Auto Bot)</th>
+                        <th>Team B (Teleop Bot)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>True Auto Skill</td>
+                        <td class="highlight-green">30 pts</td>
+                        <td class="highlight-red">10 pts</td>
+                    </tr>
+                    <tr>
+                        <td>True Teleop Skill</td>
+                        <td class="highlight-red">10 pts</td>
+                        <td class="highlight-green">30 pts</td>
+                    </tr>
+                    <tr style="border-top: 2px solid #555">
+                        <td><strong>OPR Calculated</strong></td>
+                        <td style="font-size:1.2em; color:var(--accent)"><strong>40.0</strong></td>
+                        <td style="font-size:1.2em; color:var(--accent)"><strong>40.0</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="explanation">
+                <strong>Analysis:</strong> To OPR, these robots are identical clones. In reality, they are strategically opposite. If you pick Team B hoping for an Auto Ranking Point, OPR has misled you.
+            </div>
+        `;
+        output.innerHTML = html;
+    }
+
+    // --- SCENARIO 3: SYNERGY ---
+    function runSynergySim() {
+        // Setup: Teams usually score 10.
+        // Synergy: Team 0 + Team 1 = +20 bonus (Total 40).
+        
+        const teams = [0, 1, 2, 3];
+        const matches = [];
+        
+        // Run simulation with 20 matches to let OPR stabilize
+        for(let i=0; i<20; i++) {
+            let indices = [0,1,2,3].sort(() => Math.random() - 0.5);
+            let red = [indices[0], indices[1]];
+            let blue = [indices[2], indices[3]];
+            
+            let rScore = 20; // 10 + 10 base
+            let bScore = 20;
+
+            // Apply Synergy Bonus
+            if (red.includes(0) && red.includes(1)) rScore += 20; 
+            if (blue.includes(0) && blue.includes(1)) bScore += 20;
+
+            matches.push({ red, blue, redScore: rScore, blueScore: bScore });
+        }
+
+        const oprs = solveOPR(matches, 4);
+        
+        // Results
+        const team0_OPR = oprs[0];
+        const team1_OPR = oprs[1];
+        
+        // Scenario A: Apart (Actual 20)
+        const predApart = team0_OPR + team1_OPR;
+        const actualApart = 20;
+        
+        // Scenario B: Together (Actual 40)
+        const predTogether = team0_OPR + team1_OPR; // OPR just sums them
+        const actualTogether = 40;
+
+        let tableHtml = `
+            <tr>
+                <td><strong>Team 0 OPR</strong></td>
+                <td>True Base: 10</td>
+                <td>Calculated: <span class="highlight-warn">${team0_OPR.toFixed(1)}</span></td>
+                <td>(Inflated by ~${(team0_OPR-10).toFixed(1)})</td>
+            </tr>
+            <tr style="border-bottom: 2px solid #555;">
+                <td><strong>Team 1 OPR</strong></td>
+                <td>True Base: 10</td>
+                <td>Calculated: <span class="highlight-warn">${team1_OPR.toFixed(1)}</span></td>
+                <td>(Inflated by ~${(team1_OPR-10).toFixed(1)})</td>
+            </tr>
+            <tr>
+                <td><strong>Playing Apart</strong></td>
+                <td>${actualApart}</td>
+                <td>${predApart.toFixed(1)}</td>
+                <td class="highlight-red">+${(predApart - actualApart).toFixed(1)} (Over-predicted)</td>
+            </tr>
+            <tr>
+                <td><strong>Playing Together</strong></td>
+                <td>${actualTogether}</td>
+                <td>${predTogether.toFixed(1)}</td>
+                <td class="highlight-red">${(predTogether - actualTogether).toFixed(1)} (Under-predicted)</td>
+            </tr>
+        `;
+        
+        document.querySelector('#synergyTable tbody').innerHTML = tableHtml;
+        document.getElementById('synergyExplanation').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
